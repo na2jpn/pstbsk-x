@@ -1,0 +1,2 @@
+APP_NAME = "PSTBSK-X"
+VERSION = "0.14"

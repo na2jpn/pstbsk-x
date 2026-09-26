@@ -1,0 +1,4 @@
+PSTBSK-X Ver0.04 CANONICAL SOURCE
+
+This directory is the sole canonical source baseline for Ver0.04.
+Future development should start from this source tree, not from older deltas/FIX archives.
