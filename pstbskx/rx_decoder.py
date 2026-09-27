@@ -1,9 +1,8 @@
 """Burst receiver for PSTBSK-X frames in the 300–2700 Hz audio passband.
 
-The current transmitter uses XPskSinTone(rounded 48000 / AF, 10).  Search the
-same finite set of tones with a matched preamble before invoking TBSKmodem.
-This also attempts overlapping stations at different AF positions. PTX1
-frames require length/CRC validation; raw UTF-8 is displayed separately.
+Search narrowband SinTone(32,24) and legacy XPskSin preambles before
+demodulation. PTX1 frames require length/CRC validation; raw UTF-8 is
+displayed separately.
 """
 from __future__ import annotations
 
@@ -20,6 +19,7 @@ from .audio_io import SAMPLE_RATE
 from .frame import unpack_frame, TYPE_CQ, TYPE_REPORT, TYPE_QSL, TYPE_FINAL
 from .qso import CQ_RE, CALL
 from .tbsk_phy import TbskPhy
+from .tone_profiles import TX_POINTS, TX_CYCLES
 
 _FROM = re.compile(rf"\bDE\s+(?P<call>{CALL})\b", re.I)
 
@@ -135,14 +135,19 @@ class BurstDecoder:
                 # distinguish it from copies of the tone in the payload.
                 wave = np.asarray(phy.modulate(b""), dtype=np.float32)
                 template = wave[:points * 10 * 12]
-                self._templates.append((points, template))
+                self._templates.append((points, template, "xpsk", 10))
+            narrow = TbskPhy(sample_rate=self.sample_rate, points=TX_POINTS,
+                             cycles=TX_CYCLES, tone_type="sin")
+            wave = np.asarray(narrow.modulate(b""), dtype=np.float32)
+            self._templates.append((TX_POINTS, wave[:TX_POINTS * TX_CYCLES * 12],
+                                    "sin", TX_CYCLES))
             # Browser/CLI preset is generated at 16 kHz with xpsk:10,10.
             # Its sampled waveform differs from a freshly generated 48 kHz
             # xpsk:30,10 waveform, despite their identical symbol duration.
             if self.sample_rate == 48000:
                 web = np.asarray(TbskPhy(sample_rate=16000, points=10).modulate(b""),dtype=np.float32)
                 up = np.interp(np.arange(len(web)*3)/3,np.arange(len(web)),web).astype(np.float32)
-                self._templates.append((30,up[:30*10*12]))
+                self._templates.append((30,up[:30*10*12],"web",10))
         return self._templates
 
     def decode_burst(self, samples):
@@ -156,7 +161,7 @@ class BurstDecoder:
         nfft = 1 << (len(search) + round(self.sample_rate / 300) * 10 * 12 - 1).bit_length()
         spectrum = np.fft.rfft(search, nfft)
         scores = []
-        for points, template in self._tone_templates():
+        for points, template, tone_type, cycles in self._tone_templates():
             if len(template) >= len(search): continue
             corr = np.fft.irfft(spectrum * np.conj(np.fft.rfft(template, nfft)), nfft)
             valid = corr[:len(search) - len(template) + 1]
@@ -171,20 +176,21 @@ class BurstDecoder:
             # earliest strong match so the TBSK preamble is not skipped.
             matches = np.flatnonzero(coherence >= max(.55, strongest * .80))
             at = int(matches[0]) if len(matches) else int(np.argmax(coherence))
-            scores.append((float(coherence[at]), points, at, template))
+            scores.append((float(coherence[at]), points, at, tone_type, cycles))
         scores.sort(reverse=True, key=lambda item: item[0])
         results = []
         candidates = 0
         rejected = 0
         seen = set()
-        for score, points, at, template in scores[:8]:
+        for score, points, at, tone_type, cycles in scores[:8]:
             if score < .55: break
-            if any(abs(points - prior) <= 1 for prior in seen): continue
+            if tone_type == "xpsk" and any(abs(points - prior) <= 1 for prior in seen): continue
             candidates += 1
-            seen.add(points)
+            if tone_type == "xpsk": seen.add(points)
             # Start ahead of the preamble and include its entire beginning.
-            begin = max(0, at - points * 10)
-            phy = TbskPhy(sample_rate=self.sample_rate, points=points)
+            begin = max(0, at - points * cycles)
+            phy = TbskPhy(sample_rate=self.sample_rate, points=points,
+                          cycles=cycles, tone_type="sin" if tone_type == "sin" else "xpsk")
             try: raw = phy.demodulate_bytes(signal[begin:])
             except Exception:
                 rejected += 1

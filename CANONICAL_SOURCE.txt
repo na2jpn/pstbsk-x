@@ -1,4 +1,4 @@
-PSTBSK-X Ver0.04 CANONICAL SOURCE
+PSTBSK-X Ver 0.15 CANONICAL SOURCE
 
-This directory is the sole canonical source baseline for Ver0.04.
-Future development should start from this source tree, not from older deltas/FIX archives.
+This archive is the sole source baseline for Ver 0.15.
+Future work starts from this archive. Do not replay earlier canonical or diff archives. RF occupied bandwidth requires measurement at the transmitter.

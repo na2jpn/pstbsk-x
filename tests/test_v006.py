@@ -97,7 +97,7 @@ class UiTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             w=MainWindow(Path(td)); w.config["callsign"]="JH1HST"; w.apply_settings()
             radio=Radio(); w.radio=radio; w._update_connection_label()
-            with patch("pstbskx.app.modulate_profile",modulate), patch("pstbskx.app.check_output"), patch("pstbskx.app.play_samples",return_value=True) as output:
+            with patch("pstbskx.app.modulate_profile",modulate), patch("pstbskx.app.audio_occupied_bandwidth",return_value=(500,1250,1750)), patch("pstbskx.app.check_output"), patch("pstbskx.app.play_samples",return_value=True) as output:
                 self.assertTrue(w.tx(w.session.cq_text(),"cq",True))
                 deadline=time.monotonic()+3
                 while w._tx_busy and time.monotonic()<deadline:
@@ -105,11 +105,20 @@ class UiTests(unittest.TestCase):
                 self.assertEqual(radio.ptt,[True,False])
                 output.assert_called_once()
                 self.assertFalse(w._tx_busy)
-            with patch("pstbskx.app.modulate_profile",modulate), patch("pstbskx.app.check_output"), patch("pstbskx.app.play_samples",side_effect=RuntimeError("device busy")):
+            with patch("pstbskx.app.modulate_profile",modulate), patch("pstbskx.app.audio_occupied_bandwidth",return_value=(500,1250,1750)), patch("pstbskx.app.check_output"), patch("pstbskx.app.play_samples",side_effect=RuntimeError("device busy")):
                 self.assertTrue(w.tx(w.session.cq_text(),"cq",True))
                 deadline=time.monotonic()+3
                 while w._tx_busy and time.monotonic()<deadline:
                     self.app.processEvents(); time.sleep(.005)
                 self.assertEqual(radio.ptt,[True,False,True,False])
                 self.assertIn("device busy",w.statusBar().currentMessage())
+            w.stop_autocq()
+            with patch("pstbskx.app.modulate_profile",modulate), patch("pstbskx.app.audio_occupied_bandwidth",return_value=(1600,700,2300)), patch("pstbskx.app.check_output") as check:
+                self.assertTrue(w.tx(w.session.cq_text(),"cq",True))
+                deadline=time.monotonic()+3
+                while w._tx_busy and time.monotonic()<deadline:
+                    self.app.processEvents(); time.sleep(.005)
+                self.assertEqual(radio.ptt,[True,False,True,False])
+                check.assert_not_called()
+                self.assertIn("1.5 kHz",w.statusBar().currentMessage())
             w.radio=None; w.close()

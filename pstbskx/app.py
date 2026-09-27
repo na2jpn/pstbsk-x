@@ -26,7 +26,8 @@ from .civ import CIVController
 from .updater import inspect_zip, prepare_update, launch_updater, report_startup
 from .audio_io import device_choices, monitor_tone, play_samples, check_output, capture_input, SAMPLE_RATE
 from .signal_view import measure_audio, meter_percent, SPECTRUM_BINS
-from .tone_profiles import normalize_profile, modulate_profile
+from .tone_profiles import (normalize_profile, modulate_profile,
+                            audio_occupied_bandwidth, AF_OBW_TARGET_HZ)
 from .rx_decoder import BurstDecoder, ReceivedFrame
 from .frame import pack_frame, TYPE_TEXT, TYPE_CQ, TYPE_REPORT, TYPE_QSL, TYPE_FINAL
 from .ui_common import (
@@ -347,12 +348,11 @@ class SettingsWindow(ManagedWindow):
         af.addRow(self.monitor_btn); af.addRow(self.monitor_note)
         self.stack.addWidget(self.audio_page)
 
-        # The selected TX format is explicit; RX also checks other AF tones.
+        # Only the measured narrowband format may be transmitted.
         self.tbsk_page=QWidget(); tf=QFormLayout(self.tbsk_page)
         tf.setContentsMargins(20,18,20,18); tf.setSpacing(12)
-        self.tone_lab=QLabel(); self.tone_profile=QComboBox()
-        self.tone_profile.addItem("PSTBSK-X · 48 kHz / 320 ticks / 150 bps · 1500 Hz", "pstbskx_150")
-        self.tone_profile.addItem("Web版と同じトーン · 16 kHz / 100 ticks / 160 bps", "web_160")
+        self.tone_lab=QLabel(); self.tone_profile=QLabel()
+        self.tone_profile.setWordWrap(True)
         self.tone_note=QLabel(); self.tone_note.setWordWrap(True)
         tf.addRow(self.tone_lab,self.tone_profile); tf.addRow(self.tone_note)
         self.stack.addWidget(self.tbsk_page)
@@ -530,7 +530,6 @@ class SettingsWindow(ManagedWindow):
         self.stopbits.setCurrentText(str(rig.get("cat_stopbits",1 if model=="FTX-1" else 2)))
         self._select_audio(self.ain,rig.get("audio_in") or "UNSET","input")
         self._select_audio(self.aout,rig.get("audio_out") or "AUTO","output")
-        self._select(self.tone_profile,normalize_profile(c.get("tbsk",{}).get("tone_profile")))
         self.show_jst.setChecked(bool(c.get("display",{}).get("show_jst", True)))
         backup=c.get("backup",{})
         self.backup_exit.setChecked(backup.get("on_exit",True))
@@ -557,7 +556,7 @@ class SettingsWindow(ManagedWindow):
         changed=any(old_rig.get(k)!=new_rig.get(k) for k in ("model","civ_address","com_port","cat_baud","civ_baud","ptt","cat_stopbits"))
         if changed and self.main.radio is not None: self.main.toggle_connection()
         self.main.config["rig"] = new_rig
-        self.main.config.setdefault("tbsk",{})["tone_profile"] = self.tone_profile.currentData()
+        self.main.config.setdefault("tbsk",{})["tone_profile"] = normalize_profile(None)
         self.main.config.setdefault("display",{})["show_jst"] = self.show_jst.isChecked()
         self.main.config.setdefault("backup",{}).update(on_exit=self.backup_exit.isChecked(),
             every_enabled=self.backup_every.isChecked(),every_count=self.backup_count.value())
@@ -575,8 +574,7 @@ class SettingsWindow(ManagedWindow):
         current=max(0,self.nav.currentRow()); self.nav.clear()
         self.nav.addItems([tr(L,"station_page"),tr(L,"rig_page"),tr(L,"audio_page"),tr(L,"tbsk_page"),tr(L,"display_page"),tr(L,"log_page")]); self.nav.setCurrentRow(current)
         self.tone_lab.setText(tr(L,"tone_format")); self.tone_note.setText(tr(L,"tone_note"))
-        self.tone_profile.setItemText(0,tr(L,"tone_native_detail"))
-        self.tone_profile.setItemText(1,tr(L,"tone_web_detail"))
+        self.tone_profile.setText(tr(L,"tone_native_detail"))
         self.call_lab.setText(tr(L,"callsign")); self.maker_lab.setText(tr(L,"maker")); self.model_lab.setText(tr(L,"model")); self.com_lab.setText(tr(L,"com")); self.ain_lab.setText(tr(L,"audio_in")); self.aout_lab.setText(tr(L,"audio_out"))
         self.conn_btn.setText(tr(L,"connection_test")); self.ptt_btn.setText(tr(L,"ptt_test")); self.show_jst.setText(tr(L,"show_jst")); self.utc_note.setText(tr(L,"utc_always")); self.window_note.setText(tr(L,"window_note"))
         self.backup_head.setText(tr(L,"backup_title")); self.backup_desc.setText(tr(L,"backup_desc")); self.log_path_lab.setText(tr(L,"log_path")); self.save_btn.setText(tr(L,"save")); self.close_btn.setText(tr(L,"close"))
@@ -822,7 +820,7 @@ class UpdateWindow(ManagedWindow):
 
 class MainWindow(QMainWindow):
     radio_done=Signal(str,object,object)
-    tx_done=Signal(str,bool,str,object)
+    tx_done=Signal(str,bool,str,object,object)
     rx_data=Signal(object,float,int)
     rx_error=Signal(str,int)
     tx_data=Signal(object)
@@ -1166,8 +1164,8 @@ class MainWindow(QMainWindow):
         return True
 
     def apply_settings(self):
-        profile=normalize_profile(self.config.get("tbsk",{}).get("tone_profile"))
-        self.tone_status.setText(tr(self.lang,"tone_web" if profile=="web_160" else "tone_native"))
+        self.config.setdefault("tbsk",{})["tone_profile"] = normalize_profile(None)
+        self.tone_status.setText(tr(self.lang,"tone_native"))
         self.call_lbl.setText(self.config.get("callsign","") or "NOCALL"); self.session.my_call=self.config.get("callsign","") or "NOCALL"
         ac=self.config.get("autocq",{}); sec=int(ac.get("interval_sec",10)); self.autocq_interval.blockSignals(True); self.autocq_interval.setValue(max(5,min(120,sec))); self.autocq_interval.blockSignals(False)
         self.autocq_count.blockSignals(True); self.autocq_count.setValue(max(1,min(999,int(ac.get("repeat_count",10))))); self.autocq_count.blockSignals(False)
@@ -1488,12 +1486,15 @@ class MainWindow(QMainWindow):
         stop=self._tx_stop; seq=(int(time.time()*1000)&0xffff)
         typ={"cq":TYPE_CQ,"report":TYPE_REPORT,"qsl":TYPE_QSL,"final":TYPE_FINAL}.get(kind,TYPE_TEXT)
         report_value=self.session._snr_text(self.session.current_rx_snr) if kind=="report" else None
-        af_hz=1500 if kind=="cq" else self.session.af_hz
+        af_hz=1500  # Fixed TX center; RX AF tracks the received station only.
         def worker():
-            keyed=False; success=False; error=""
+            keyed=False; success=False; error=""; audio_width=None
             try:
                 samples=modulate_profile(self.config.get("tbsk",{}).get("tone_profile"),
                                         af_hz,pack_frame(typ,seq,text))
+                audio_width,_,_=audio_occupied_bandwidth(samples)
+                if audio_width > AF_OBW_TARGET_HZ:
+                    raise RuntimeError(tr(self.lang,"tx_audio_bandwidth_error").format(width=audio_width))
                 check_output(device)
                 if stop.is_set(): return
                 if radio is not None:
@@ -1512,11 +1513,11 @@ class MainWindow(QMainWindow):
                         if not method(False): raise RuntimeError("PTT OFF failed")
                     except Exception as exc:
                         success=False; error=f"{error}; {exc}" if error else str(exc)
-                self.tx_done.emit(kind,success and not stop.is_set(),error,report_value)
+                self.tx_done.emit(kind,success and not stop.is_set(),error,report_value,audio_width)
         threading.Thread(target=worker,daemon=True).start()
         return True
 
-    def _transmission_completed(self,kind,success,error,report_value):
+    def _transmission_completed(self,kind,success,error,report_value,audio_width=None):
         self._tx_busy=False; self.connect_btn.setEnabled(not self.radio_busy)
         self.spectrum.clear(); self._spectrum_title()
         if self._rx_device=="UNSET":
@@ -1527,8 +1528,11 @@ class MainWindow(QMainWindow):
         self.sequence_send.setToolTip("")
         if success and kind=="report" and report_value is not None:
             self.session.report_sent=report_value; self.sent.setText(report_value)
-        self.statusBar().showMessage(
-            f"{tr(self.lang,'audio_error')}: {error}" if error else tr(self.lang,"tx_complete" if success else "tx_stopped"), 10000)
+        message=(f"{tr(self.lang,'audio_error')}: {error}" if error else
+                 tr(self.lang,"tx_complete" if success else "tx_stopped"))
+        if success and audio_width is not None:
+            message += "  " + tr(self.lang,"tx_audio_bandwidth").format(width=audio_width)
+        self.statusBar().showMessage(message,10000)
         if self._tx_auto and self.autocq_btn.isChecked():
             if not success:
                 self.stop_autocq()

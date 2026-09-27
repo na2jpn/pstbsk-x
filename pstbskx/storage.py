@@ -22,7 +22,7 @@ DEFAULT_CONFIG = {
         "repeat_count": 10,
     },
     "tx": {"allow_disconnected": False},
-    "tbsk": {"tone_profile": "pstbskx_150"},
+    "tbsk": {"tone_profile": "narrow_100"},
     "rx_display": {"sq": 12, "sensitivity": 50},
     "backup": {"on_exit": True, "every_enabled": False, "every_count": 30, "pending_qsos": 0},
     "windows": {},

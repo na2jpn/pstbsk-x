@@ -30,13 +30,14 @@ class WebToneTests(unittest.TestCase):
 
     def test_tx_profile_mapping(self):
         self.assertEqual(tx_points("pstbskx_150",1500),32)
-        self.assertEqual(tx_points("web_160",1500),30)
+        self.assertEqual(tx_points("web_160",1500),32)
         with patch.dict(sys.modules, {"sounddevice": types.ModuleType("sounddevice")}):
             from pstbskx.tbsk_phy import TbskPhy
-            from pstbskx.tone_profiles import modulate_profile
-            actual=modulate_profile("web_160",1500,b"TEST")
-            low=np.asarray(TbskPhy(sample_rate=16000,points=10).modulate(b"TEST"))
-            expected=np.interp(np.arange(len(low)*3)/3,np.arange(len(low)),low)
+            from pstbskx.tone_profiles import modulate_profile, normalize_profile
+            self.assertEqual(normalize_profile("web_160"), "narrow_100")
+            self.assertEqual(normalize_profile("pstbskx_150"), "narrow_100")
+            actual=modulate_profile("web_160",2700,b"TEST")
+            expected=np.asarray(TbskPhy(points=32,cycles=24,tone_type="sin").modulate(b"TEST"))
             np.testing.assert_allclose(actual,expected,atol=1e-6)
 
 
