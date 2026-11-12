@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QFrame, QLabel, QPlainTextEdit, QLineEdit, QPushButton, QGroupBox,
     QComboBox, QStatusBar, QScrollArea, QSplitter, QListWidget, QStackedWidget,
     QFormLayout, QCheckBox, QSpinBox, QSizePolicy, QMessageBox, QFileDialog,
-    QRadioButton, QButtonGroup, QProgressBar, QSlider
+    QRadioButton, QButtonGroup, QProgressBar, QSlider, QDialog
 )
 
 from . import APP_NAME, VERSION
@@ -605,13 +605,33 @@ class AboutWindow(ManagedWindow):
         self.version=QLabel(); self.version.setAlignment(Qt.AlignCenter); self.version.setStyleSheet("color:#f5d9de;font-weight:700;")
         self.tagline=QLabel(); self.tagline.setAlignment(Qt.AlignCenter); self.tagline.setStyleSheet("color:#f9edf0;")
         hl.addWidget(icon); hl.addWidget(title); hl.addWidget(self.version); hl.addWidget(self.tagline); outer.addWidget(header)
-        self.intro_h,self.intro_b=self._card(outer); self.project_h,self.project_b=self._card(outer); self.third_h,self.third_b=self._card(outer)
-        self.project_b.setText("PS Ham-ware / AKIHABARA-GIKEN / JH1HST")
+        self.intro_h,self.intro_b=self._card(outer); self.project_h,self.project_b=self._card(outer)
+        self.project_b.setText("Copyright (c) 2026 Hiroshi Tanaka (JH1HST)\nPS Ham-ware / AKIHABARA-GIKEN\nhttps://github.com/na2jpn/pstbsk-x")
+        self.lic_h,self.lic_b=self._card(outer)
+        own_buttons=QHBoxLayout(); self.own_license=QPushButton(); self.policy=QPushButton()
+        own_buttons.addWidget(self.own_license);own_buttons.addWidget(self.policy);outer.addLayout(own_buttons)
+        self.own_license.clicked.connect(lambda:self._show_license("LICENSE.md"))
+        self.policy.clicked.connect(lambda:self._show_license("LICENSING.md"))
+        self.third_h,self.third_b=self._card(outer)
         btns=QHBoxLayout(); btns.addStretch(); self.github=QPushButton(); self.license=QPushButton(); btns.addWidget(self.github); btns.addWidget(self.license); outer.addLayout(btns)
         outer.addStretch(); bottom=QHBoxLayout(); bottom.addStretch(); self.close_btn=QPushButton(); self.close_btn.setObjectName("primary"); bottom.addWidget(self.close_btn); outer.addLayout(bottom)
         self.github.clicked.connect(lambda:QDesktopServices.openUrl(QUrl("https://github.com/nyatla/TBSKmodem")))
-        self.license.clicked.connect(lambda:QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.main.paths.licenses_dir/"TBSKmodem_LICENSE.txt"))))
-        self.close_btn.clicked.connect(self.close); self.setCentralWidget(root)
+        self.license.clicked.connect(lambda:self._show_license("TBSKmodem_LICENSE.txt"))
+        self.close_btn.clicked.connect(self.close)
+        scroll=QScrollArea();scroll.setWidgetResizable(True);scroll.setWidget(root);self.setCentralWidget(scroll)
+
+    def _show_license(self,name):
+        base=Path(getattr(sys,"_MEIPASS",Path(__file__).resolve().parent.parent))
+        candidates=(self.main.paths.licenses_dir/name,base/"licenses"/name,Path(__file__).resolve().parent.parent/name)
+        text=tr(self.lang,"license_missing").format(name=name)
+        for path in candidates:
+            try:
+                if path.is_file():text=path.read_text(encoding="utf-8-sig");break
+            except (OSError,UnicodeError):pass
+        dialog=QDialog(self);dialog.setWindowTitle(name+" — PSTBSK-X");dialog.resize(800,650)
+        layout=QVBoxLayout(dialog);view=QPlainTextEdit(dialog);view.setReadOnly(True);view.setPlainText(text)
+        layout.addWidget(view,1);close=QPushButton(tr(self.lang,"close"));close.clicked.connect(dialog.accept)
+        layout.addWidget(close);dialog.exec()
 
     def _card(self, outer):
         card=QFrame(); card.setObjectName("card"); l=QVBoxLayout(card); l.setContentsMargins(16,13,16,13); l.setSpacing(6)
@@ -621,6 +641,8 @@ class AboutWindow(ManagedWindow):
     def set_language(self,lang): self.lang=lang; self.retranslate()
     def retranslate(self):
         L=self.lang; self.setWindowTitle(tr(L,"about")); self.version.setText(f"Ver {VERSION}"); self.tagline.setText(tr(L,"about_tagline"))
+        self.lic_h.setText(tr(L,"about_license_heading"));self.lic_b.setText(tr(L,"about_license_body"))
+        self.own_license.setText(tr(L,"own_license"));self.policy.setText(tr(L,"licensing_guide"))
         self.intro_h.setText(tr(L,"about_intro_heading")); self.intro_b.setText(tr(L,"about_intro_body")); self.project_h.setText(tr(L,"about_project_heading")); self.third_h.setText(tr(L,"about_third_heading")); self.third_b.setText(tr(L,"about_third_body")); self.github.setText(tr(L,"github")); self.license.setText(tr(L,"license")); self.close_btn.setText(tr(L,"close"))
 
 

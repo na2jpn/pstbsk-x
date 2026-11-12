@@ -1,5 +1,26 @@
 # PSTBSK-X Ver 0.15
 
+## ライセンス / License
+
+Copyright (c) 2026 Hiroshi Tanaka (JH1HST)
+
+PS Ham-ware / AKIHABARA-GIKEN — [開発者 / na2jpn](https://github.com/na2jpn)
+
+PSTBSK-X本体は **GNU GPL v3以降（GPL-3.0-or-later）** で提供します。営利・非営利を問わず利用・改変・再配布できます。配布時はGPLに従って表示を保持し、対応するソースを提供してください。改良版の公開連絡は任意です。
+
+- [ライセンス全文 / Full license](LICENSE.md)
+- [共通方針・日英説明 / Licensing guide](LICENSING.md)
+- [TBSKmodemのMITライセンス](licenses/TBSKmodem_LICENSE.txt)
+- 公式サイト / Website: https://2jp.org/ps/
+- ソースコード / Source code: https://github.com/na2jpn/pstbsk-x
+
+PSTBSK-X is free software licensed under **GPL-3.0-or-later**. Third-party components retain their own licenses. TBSKmodem is by Ryo Iizuka / nyatla and remains under the MIT License; the common license does not relicense it.
+
+Windows配布版は`licenses/LICENSE.md`と`licenses/LICENSING.md`を同梱し、「PSTBSK-Xについて」からオフラインで確認できます。Python、PySide6/Qt、NumPy、sounddevice、pyserial、PyInstaller等の第三者コンポーネントの条件も個別に適用されます。
+
+旧EXEの更新機能は配布ファイルを2個に固定して検査するため、共通文書を追加した新版への初回移行はアプリを閉じてWindows配布ZIPを上書き展開してください。新しい更新機能は従来の2ファイルZIPと共通文書付きZIPを検証し、設定・ログ・バックアップを保持します。
+
+
 Python・PySide6によるWindows向けTBSK通信ソフトウェアのソース正本です。TBSKmodemで送受信し、PSTBSK-X同士の通信にはCRC付きPTX1フレームを使います。Web版などの生UTF-8 TBSKも受信欄に`[TBSK RAW]`として表示します。
 
 ## Windowsでビルド
@@ -12,7 +33,7 @@ python -m unittest discover -s tests -v
 .\build-windows.ps1
 ```
 
-`build-windows.ps1`はテストとPyInstallerビルドを実行し、`release/PSTBSK-X_0.15_win64.zip`を生成します。配布用ZIPの中は`PSTBSK-X.exe`と`config/`、`log/`、`bak/`、`licenses/`です。既存環境を更新する場合は設定・ログ・バックアップを保持してください。アプリ内バージョンアップにはこのソースZIPでなくWindows配布ZIPを指定します。
+`build-windows.ps1`はテストとPyInstallerビルドを実行し、`release/PSTBSK-X_0.15_win64.zip`を生成します。配布用ZIPの中は`PSTBSK-X.exe`と`config/`、`log/`、`bak/`、`licenses/`です。`licenses/`には本体のGPL全文・共通説明とTBSKmodemのMIT本文を同梱します。既存環境を更新する場合は設定・ログ・バックアップを保持してください。アプリ内バージョンアップにはこのソースZIPでなくWindows配布ZIPを指定します。
 
 ## 確認済みの範囲
 

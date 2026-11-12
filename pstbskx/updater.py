@@ -18,6 +18,7 @@ EXE="PSTBSK-X.exe"
 MANIFEST="config/pstbskx-release.json"
 LICENSE="licenses/TBSKmodem_LICENSE.txt"
 FILES=(EXE,LICENSE)
+COMMON_LICENSES=("licenses/LICENSE.md","licenses/LICENSING.md")
 MAX_BYTES=512*1024*1024
 
 def version_key(value):
@@ -33,8 +34,12 @@ def digest(path):
 
 def create_manifest(root,version):
     root=Path(root); version_key(version)
+    included=tuple(name for name in COMMON_LICENSES if (root/name).is_file())
+    if included and len(included)!=len(COMMON_LICENSES):
+        raise ValueError("共通ライセンス文書は2ファイルとも同梱してください")
+    files=(*FILES,*included)
     data={"product":PRODUCT,"format":1,"platform":"windows","version":version,"config_schema":1,
-          "files":{name:digest(root/name) for name in FILES}}
+          "files":{name:digest(root/name) for name in files}}
     target=root/MANIFEST; target.parent.mkdir(parents=True,exist_ok=True)
     target.write_text(json.dumps(data,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
     return data
@@ -60,17 +65,22 @@ def inspect_zip(path,current_version,installed_root=None):
                 if folded in seen: raise ValueError("ZIP内に重複パスがあります")
                 seen.add(folded)
                 if stat.S_ISLNK(item.external_attr>>16) or item.flag_bits&1: raise ValueError("リンク／暗号化ZIPは使用できません")
-            expected={MANIFEST,*FILES}; folders={"config/","log/","bak/","licenses/"}
+            expected={MANIFEST,*FILES,*COMMON_LICENSES}; folders={"config/","log/","bak/","licenses/"}
             if any(i.filename not in expected|folders for i in items): raise ValueError("配布ZIPに想定外のファイルがあります")
-            if not expected.issubset({i.filename for i in items}): raise ValueError("PSTBSK-X配布ZIPのファイルが不足しています")
+            if not {MANIFEST,*FILES}.issubset({i.filename for i in items}): raise ValueError("PSTBSK-X配布ZIPのファイルが不足しています")
             if archive.getinfo(MANIFEST).file_size>16384: raise ValueError("マニフェストが大きすぎます")
             info=json.loads(archive.read(MANIFEST))
             if (not isinstance(info,dict) or info.get("product")!=PRODUCT or info.get("format")!=1 or
                 info.get("platform")!="windows" or info.get("config_schema")!=1): raise ValueError("PSTBSK-X Windows配布ZIPではありません")
             new=version_key(info["version"]); old=version_key(current_version)
             if new<old: raise ValueError("旧版への更新はできません")
-            if set(info.get("files",{}))!=set(FILES): raise ValueError("更新対象ファイルが不正です")
-            for name in FILES:
+            files=info.get("files")
+            if (not isinstance(files,dict) or set(files) not in (set(FILES),set((*FILES,*COMMON_LICENSES)))
+                    or not all(isinstance(v,str) and re.fullmatch(r'[0-9a-f]{64}',v) for v in files.values())):
+                raise ValueError("更新対象ファイルが不正です")
+            if {i.filename for i in items if not i.is_dir()}!={MANIFEST,*files}:
+                raise ValueError("配布ZIPのファイルとマニフェストが一致しません")
+            for name in files:
                 h=hashlib.sha256()
                 with archive.open(name) as fp:
                     first=fp.read(2)
@@ -118,19 +128,23 @@ def apply_update(stage,root,current_version):
     if stage.parent!=root/"bak"/"updates": raise ValueError("更新作業場所が不正です")
     _no_links(root,("bak","bak/updates","bak/update-snapshots",EXE,MANIFEST,"config","log","licenses"))
     info=inspect_zip(stage/"release.zip",current_version,root)
+    files=tuple(info["files"])
+    _no_links(root,files)
     installed=root/MANIFEST
     if not installed.is_file() or not (root/EXE).is_file(): raise ValueError("更新先にPSTBSK-X配布ファイルがありません")
     old=json.loads(installed.read_text(encoding="utf-8"))
     if old.get("product")!=PRODUCT or old.get("version")!=current_version: raise ValueError("更新先のバージョンが変わっています")
     payload=stage/"payload"; payload.mkdir(exist_ok=True)
     with zipfile.ZipFile(stage/"release.zip") as archive:
-        for name in (*FILES,MANIFEST):
+        for name in (*files,MANIFEST):
             target=payload/name; target.parent.mkdir(parents=True,exist_ok=True)
             with archive.open(name) as src,target.open("wb") as dst: shutil.copyfileobj(src,dst)
     backup=root/"bak"/"update-snapshots"/(time.strftime("%Y%m%d_%H%M%S")+"_"+uuid.uuid4().hex[:8])
     backup.mkdir(parents=True)
+    existed={name for name in (*files,MANIFEST) if (root/name).exists()}
     try:
-        for name in (*FILES,MANIFEST):
+        for name in (*files,MANIFEST):
+            if name not in existed and name in COMMON_LICENSES:continue
             target=backup/name; target.parent.mkdir(parents=True,exist_ok=True); shutil.copy2(root/name,target)
         for name in ("config","log","bak"):
             src=root/name
@@ -145,13 +159,15 @@ def apply_update(stage,root,current_version):
         journal.write_text(json.dumps({"status":status,"backup":str(backup),"version":info["version"],"detail":detail},ensure_ascii=False),encoding="utf-8")
     record("backed_up"); changed=[]
     try:
-        for name in (*FILES,MANIFEST):
+        for name in (*files,MANIFEST):
             _atomic_copy(payload/name,root/name); changed.append(name)
         record("succeeded"); return backup
     except Exception as exc:
         errors=[]
         for name in reversed(changed):
-            try: _atomic_copy(backup/name,root/name)
+            try:
+                if name in existed:_atomic_copy(backup/name,root/name)
+                else:(root/name).unlink(missing_ok=True)
             except Exception as restore: errors.append(f"{name}: {restore}")
         record("rollback_failed" if errors else "rolled_back",str(exc)+"; "+"; ".join(errors))
         raise RuntimeError(f"更新失敗。バックアップ: {backup} / {exc}"+(" / 復元失敗: "+"; ".join(errors) if errors else " / 旧版に復元済み")) from exc

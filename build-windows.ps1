@@ -23,6 +23,9 @@ python -m PyInstaller --noconfirm --clean --windowed --onefile `
   --name "PSTBSK-X" `
   --icon "resources\pstbskx.ico" `
   --add-data "resources\pstbskx.png;resources" `
+  --add-data "LICENSE.md;licenses" `
+  --add-data "LICENSING.md;licenses" `
+  --add-data "licenses\TBSKmodem_LICENSE.txt;licenses" `
   main.py
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed" }
 
@@ -34,6 +37,8 @@ New-Item -ItemType Directory -Force -Path $Out | Out-Null
 Move-Item -Force "dist\PSTBSK-X.exe" "$Out\PSTBSK-X.exe"
 New-Item -ItemType Directory -Force -Path "$Out\config","$Out\log","$Out\bak","$Out\licenses" | Out-Null
 Copy-Item "licenses\TBSKmodem_LICENSE.txt" "$Out\licenses\TBSKmodem_LICENSE.txt" -Force
+Copy-Item "LICENSE.md" "$Out\licenses\LICENSE.md" -Force
+Copy-Item "LICENSING.md" "$Out\licenses\LICENSING.md" -Force
 python -c "from pathlib import Path; from pstbskx.updater import create_manifest; create_manifest(Path(r'$Out'), '$Version')"
 if ($LASTEXITCODE -ne 0) { throw "Release manifest generation failed" }
 
