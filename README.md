@@ -1,4 +1,4 @@
-# PSTBSK-X Ver 0.15
+# PSTBSK-X Ver 0.16
 
 ## ライセンス / License
 
@@ -16,7 +16,7 @@ PSTBSK-X本体は **GNU GPL v3以降（GPL-3.0-or-later）** で提供します�
 
 PSTBSK-X is free software licensed under **GPL-3.0-or-later**. Third-party components retain their own licenses. TBSKmodem is by Ryo Iizuka / nyatla and remains under the MIT License; the common license does not relicense it.
 
-Windows配布版は`licenses/LICENSE.md`と`licenses/LICENSING.md`を同梱し、「PSTBSK-Xについて」からオフラインで確認できます。Python、PySide6/Qt、NumPy、sounddevice、pyserial、PyInstaller等の第三者コンポーネントの条件も個別に適用されます。
+Windows配布版は`licenses/LICENSE.md`と`licenses/LICENSING.md`を同梱し、ヘルプの独立した「ライセンス」画面からオフラインで確認できます。Python、PySide6/Qt、NumPy、sounddevice、pyserial、PyInstaller等の第三者コンポーネントの条件も個別に適用されます。
 
 旧EXEの更新機能は配布ファイルを2個に固定して検査するため、共通文書を追加した新版への初回移行はアプリを閉じてWindows配布ZIPを上書き展開してください。新しい更新機能は従来の2ファイルZIPと共通文書付きZIPを検証し、設定・ログ・バックアップを保持します。
 
@@ -30,14 +30,14 @@ Python 3.12を用意し、PowerShellでこのフォルダーから次を実行�
 ```powershell
 python -m pip install -r requirements.txt
 python -m unittest discover -s tests -v
-.\build-windows.ps1
+.\windows.ps1 -CertificateThumbprint "<証明書のSHA-1拇印>"
 ```
 
-`build-windows.ps1`はテストとPyInstallerビルドを実行し、`release/PSTBSK-X_0.15_win64.zip`を生成します。配布用ZIPの中は`PSTBSK-X.exe`と`config/`、`log/`、`bak/`、`licenses/`です。`licenses/`には本体のGPL全文・共通説明とTBSKmodemのMIT本文を同梱します。既存環境を更新する場合は設定・ログ・バックアップを保持してください。アプリ内バージョンアップにはこのソースZIPでなくWindows配布ZIPを指定します。
+`windows.ps1`はテスト・PyInstallerビルド・EXEの署名とタイムスタンプ・署名検証を実行し、`release/PSTBSK-X_0.16_win64.zip`を生成します。証明書を指定できない場合や署名・検証に失敗した場合は配布ZIPを作りません。Windows SDKのSignToolが必要です。旧`build-windows.ps1`は互換入口です。詳しくは`SIGNING.md`を参照してください。配布用ZIPの中は`PSTBSK-X.exe`と`config/`、`log/`、`bak/`、`licenses/`です。`licenses/`には本体のGPL全文・共通説明とTBSKmodemのMIT本文を同梱します。既存環境を更新する場合は設定・ログ・バックアップを保持してください。アプリ内バージョンアップにはこのソースZIPでなくWindows配布ZIPを指定します。
 
 ## 確認済みの範囲
 
-開発環境で43件の単体テストと構文検査を通過しました。Ver 0.14では、ユーザーのWindows実機のステレオミキサー入力からWeb版TBSK 1600 HzのCQ全文が`[TBSK RAW]`として表示されました。
+Ver 0.16のLinux開発環境では47件の単体テストと構文検査を通過しました。Windows実機の署名・ビルドは未検証です。Ver 0.14では、ユーザーのWindows実機のステレオミキサー入力からWeb版TBSK 1600 HzのCQ全文が`[TBSK RAW]`として表示されました。
 
 受信したRAW行は表示用です。現行版ではRAW行をダブルクリックしても交信シーケンスへは取り込みません。PSTBSK-XのPTX1フレームとして受信した行は、相手局が識別できる場合にダブルクリックで交信対象として選べます。
 

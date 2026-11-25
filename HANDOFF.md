@@ -1,8 +1,15 @@
-# PSTBSK-X Ver 0.15 引き継ぎ
+# PSTBSK-X Ver 0.16 引き継ぎ
 
 ## 基準
 
-この正本ZIPがVer 0.15の唯一のソース基準です。以前の正本・差分を再適用しないでください。ソース版番号は`pstbskx/__init__.py`、配布ZIPのファイル名は`build-windows.ps1`が版番号から生成します。
+この正本ZIPがVer 0.16の唯一のソース基準です。以前の正本・差分を再適用しないでください。ソース版番号は`pstbskx/__init__.py`、配布ZIPのファイル名は`windows.ps1`が版番号から生成します。
+
+## 0.16 ライセンス画面と署名
+
+- ヘルプの順番は運用上の注意、ウィンドウ位置リセット、バージョンアップ、ライセンス、PSTBSK-Xについて。独立したライセンス画面で本体GPL全文、共通ライセンス説明、Ryo Iizuka（nyatla）氏のTBSKmodem MIT原文をオフラインで表示する。About画面も著作者表示を保持する。
+- 公開Gitの`LICENSE.md`、`LICENSING.md`、`licenses/TBSKmodem_LICENSE.txt`を継承し、Windows配布ZIPに同梱。第三者の著作者表示を本体の著作者表示と混同しない。
+- Windowsビルドは`windows.ps1`。証明書拇印を明示してEXEを署名・タイムスタンプ・検証してから、更新用マニフェストで署名済みEXEのハッシュを記録する。署名失敗時に配布ZIPは作らない。詳しくは`SIGNING.md`。旧`build-windows.ps1`は互換入口。
+- Windows証明書・SignToolがこのLinux開発環境にないため、Windows実機署名と更新適用の確認は未実施。
 
 ## 狭帯域送信
 
@@ -17,4 +24,4 @@ PSTBSK-XのPTX1受信行は送信元CALLが識別できる場合にダブルク�
 
 ## 検証と次版
 
-Linuxで`python -m unittest discover -s tests -q`の43件と`python -m compileall -q main.py pstbskx tests`を確認しました。新トーンの合成PCMを同じ受信器でPTX1として復調し、送信前の帯域検査も確認しました。次の変更はユーザーの明確な実装指示を待ちます。
+Linuxで`python -m unittest discover -s tests -q`の47件と`python -m compileall -q main.py pstbskx tests`を確認しました。新トーンの合成PCMを同じ受信器でPTX1として復調し、送信前の帯域検査も確認しました。次の変更はユーザーの明確な実装指示を待ちます。

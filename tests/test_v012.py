@@ -51,11 +51,17 @@ class UiTests(unittest.TestCase):
             w=MainWindow(Path(td)); w.first_launch=False
             self.assertEqual([a.text() for a in w.m_help.actions() if not a.isSeparator()],
                 ["運用上の注意","ウィンドウサイズ・位置をリセット",
-                 "PSTBSK-Xのバージョンアップ","PSTBSK-Xについて"])
+                 "PSTBSK-Xのバージョンアップ","ライセンス","PSTBSK-Xについて"])
             w.show_about()
             self.assertEqual(w.about_window.third_h.text(),"TBSKモデムエンジン")
+            w.show_licenses()
+            self.assertEqual(w.licenses_window.tabs.count(),3)
+            self.assertIn("Ryo Iizuka",w.licenses_window.tbsk_credit.text())
+            self.assertIn("Ryo Iizuka",w.licenses_window.views[2].toPlainText())
+            self.assertIn("GNU GENERAL PUBLIC LICENSE",w.licenses_window.views[0].toPlainText())
             w.set_language("en")
             self.assertEqual(w.about_window.third_h.text(),"TBSK modem engine")
+            self.assertEqual(w.licenses_window.tabs.tabText(2),"TBSKmodem MIT license")
             w.close()
 
     def test_streaming_raw_prefix_is_extended_in_place(self):

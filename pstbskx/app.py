@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QFrame, QLabel, QPlainTextEdit, QLineEdit, QPushButton, QGroupBox,
     QComboBox, QStatusBar, QScrollArea, QSplitter, QListWidget, QStackedWidget,
     QFormLayout, QCheckBox, QSpinBox, QSizePolicy, QMessageBox, QFileDialog,
-    QRadioButton, QButtonGroup, QProgressBar, QSlider, QDialog
+    QRadioButton, QButtonGroup, QProgressBar, QSlider, QTabWidget
 )
 
 from . import APP_NAME, VERSION
@@ -583,6 +583,52 @@ class SettingsWindow(ManagedWindow):
         self.monitor_btn.setText(tr(L,"stop" if self._monitor_active else "check_monitor"))
 
 
+def bundled_license_text(main, name):
+    base=Path(getattr(sys,"_MEIPASS",Path(__file__).resolve().parent.parent))
+    candidates=(main.paths.licenses_dir/name,base/"licenses"/name,
+                Path(__file__).resolve().parent.parent/"licenses"/name,
+                Path(__file__).resolve().parent.parent/name)
+    for path in candidates:
+        try:
+            if path.is_file(): return path.read_text(encoding="utf-8-sig")
+        except (OSError,UnicodeError): pass
+    return tr(main.lang,"license_missing").format(name=name)
+
+
+class LicenseWindow(ManagedWindow):
+    geometry_key = "licenses"
+    default_size = (850, 680)
+    minimum_size = (480, 340)
+    DOCUMENTS = ("LICENSE.md","LICENSING.md","TBSKmodem_LICENSE.txt")
+
+    def __init__(self, main):
+        self.lang=main.lang
+        super().__init__(main,None); self.setWindowFlag(Qt.Window,True)
+        root=QWidget(); layout=QVBoxLayout(root); layout.setContentsMargins(18,18,18,18)
+        self.intro=QLabel(); self.intro.setWordWrap(True); layout.addWidget(self.intro)
+        self.tabs=QTabWidget(); self.views=[]
+        for name in self.DOCUMENTS:
+            page=QWidget(); column=QVBoxLayout(page)
+            if name=="TBSKmodem_LICENSE.txt":
+                self.tbsk_credit=QLabel(); self.tbsk_credit.setWordWrap(True)
+                column.addWidget(self.tbsk_credit)
+            view=QPlainTextEdit(); view.setReadOnly(True); view.setFont(QFont("Consolas",10))
+            view.setPlainText(bundled_license_text(main,name))
+            column.addWidget(view,1); self.tabs.addTab(page,""); self.views.append(view)
+        layout.addWidget(self.tabs,1)
+        row=QHBoxLayout(); row.addStretch(); self.close_btn=QPushButton();
+        self.close_btn.clicked.connect(self.close); row.addWidget(self.close_btn); layout.addLayout(row)
+        self.setCentralWidget(root); self.retranslate()
+
+    def set_language(self,lang): self.lang=lang; self.retranslate()
+    def retranslate(self):
+        L=self.lang; self.setWindowTitle(tr(L,"licenses_title"))
+        self.intro.setText(tr(L,"licenses_intro")); self.tbsk_credit.setText(tr(L,"tbsk_credit"))
+        for index,key in enumerate(("own_license","licensing_guide","license")):
+            self.tabs.setTabText(index,tr(L,key))
+        self.close_btn.setText(tr(L,"close"))
+
+
 class AboutWindow(ManagedWindow):
     geometry_key = "about"
     default_size = (650, 600)
@@ -607,31 +653,13 @@ class AboutWindow(ManagedWindow):
         hl.addWidget(icon); hl.addWidget(title); hl.addWidget(self.version); hl.addWidget(self.tagline); outer.addWidget(header)
         self.intro_h,self.intro_b=self._card(outer); self.project_h,self.project_b=self._card(outer)
         self.project_b.setText("Copyright (c) 2026 Hiroshi Tanaka (JH1HST)\nPS Ham-ware / AKIHABARA-GIKEN\nhttps://github.com/na2jpn/pstbsk-x")
-        self.lic_h,self.lic_b=self._card(outer)
-        own_buttons=QHBoxLayout(); self.own_license=QPushButton(); self.policy=QPushButton()
-        own_buttons.addWidget(self.own_license);own_buttons.addWidget(self.policy);outer.addLayout(own_buttons)
-        self.own_license.clicked.connect(lambda:self._show_license("LICENSE.md"))
-        self.policy.clicked.connect(lambda:self._show_license("LICENSING.md"))
         self.third_h,self.third_b=self._card(outer)
         btns=QHBoxLayout(); btns.addStretch(); self.github=QPushButton(); self.license=QPushButton(); btns.addWidget(self.github); btns.addWidget(self.license); outer.addLayout(btns)
         outer.addStretch(); bottom=QHBoxLayout(); bottom.addStretch(); self.close_btn=QPushButton(); self.close_btn.setObjectName("primary"); bottom.addWidget(self.close_btn); outer.addLayout(bottom)
         self.github.clicked.connect(lambda:QDesktopServices.openUrl(QUrl("https://github.com/nyatla/TBSKmodem")))
-        self.license.clicked.connect(lambda:self._show_license("TBSKmodem_LICENSE.txt"))
+        self.license.clicked.connect(self.main.show_licenses)
         self.close_btn.clicked.connect(self.close)
         scroll=QScrollArea();scroll.setWidgetResizable(True);scroll.setWidget(root);self.setCentralWidget(scroll)
-
-    def _show_license(self,name):
-        base=Path(getattr(sys,"_MEIPASS",Path(__file__).resolve().parent.parent))
-        candidates=(self.main.paths.licenses_dir/name,base/"licenses"/name,Path(__file__).resolve().parent.parent/name)
-        text=tr(self.lang,"license_missing").format(name=name)
-        for path in candidates:
-            try:
-                if path.is_file():text=path.read_text(encoding="utf-8-sig");break
-            except (OSError,UnicodeError):pass
-        dialog=QDialog(self);dialog.setWindowTitle(name+" — PSTBSK-X");dialog.resize(800,650)
-        layout=QVBoxLayout(dialog);view=QPlainTextEdit(dialog);view.setReadOnly(True);view.setPlainText(text)
-        layout.addWidget(view,1);close=QPushButton(tr(self.lang,"close"));close.clicked.connect(dialog.accept)
-        layout.addWidget(close);dialog.exec()
 
     def _card(self, outer):
         card=QFrame(); card.setObjectName("card"); l=QVBoxLayout(card); l.setContentsMargins(16,13,16,13); l.setSpacing(6)
@@ -641,9 +669,7 @@ class AboutWindow(ManagedWindow):
     def set_language(self,lang): self.lang=lang; self.retranslate()
     def retranslate(self):
         L=self.lang; self.setWindowTitle(tr(L,"about")); self.version.setText(f"Ver {VERSION}"); self.tagline.setText(tr(L,"about_tagline"))
-        self.lic_h.setText(tr(L,"about_license_heading"));self.lic_b.setText(tr(L,"about_license_body"))
-        self.own_license.setText(tr(L,"own_license"));self.policy.setText(tr(L,"licensing_guide"))
-        self.intro_h.setText(tr(L,"about_intro_heading")); self.intro_b.setText(tr(L,"about_intro_body")); self.project_h.setText(tr(L,"about_project_heading")); self.third_h.setText(tr(L,"about_third_heading")); self.third_b.setText(tr(L,"about_third_body")); self.github.setText(tr(L,"github")); self.license.setText(tr(L,"license")); self.close_btn.setText(tr(L,"close"))
+        self.intro_h.setText(tr(L,"about_intro_heading")); self.intro_b.setText(tr(L,"about_intro_body")); self.project_h.setText(tr(L,"about_project_heading")); self.third_h.setText(tr(L,"about_third_heading")); self.third_b.setText(tr(L,"about_third_body")); self.github.setText(tr(L,"github")); self.license.setText(tr(L,"licenses_title")); self.close_btn.setText(tr(L,"close"))
 
 
 class LogWindow(ManagedWindow):
@@ -855,7 +881,7 @@ class MainWindow(QMainWindow):
         self.first_launch=not self.paths.config_file.exists(); self.config=self.store.load(); self.lang=self.config.get("language","ja")
         self.session=QsoSession(self.config.get("callsign","") or "NOCALL")
         self._rows=[]; self._clock_colon=True; self._received_ids={}; self._rx_decoder=None
-        self.settings_window=None; self.about_window=None; self.log_window=None; self.warning_window=None; self.first_run_window=None; self.control_window=None; self.update_window=None; self.qso_log_window=None
+        self.settings_window=None; self.about_window=None; self.licenses_window=None; self.log_window=None; self.warning_window=None; self.first_run_window=None; self.control_window=None; self.update_window=None; self.qso_log_window=None
         self.radio=None; self.radio_busy=False; self.frequency_hz=None; self.radio_features={}; self.radio_filter=None; self._autocq_sent=0
         self._tx_busy=False; self._tx_stop=threading.Event(); self._sequence_kind="cq"; self._preview_source="sequence"; self._reconnect_after_settings=False
         self._rx_stop=threading.Event(); self._rx_device=None; self._rx_generation=0; self._rx_active=False
@@ -969,12 +995,12 @@ class MainWindow(QMainWindow):
         mb=self.menuBar(); self.m_file=mb.addMenu(""); self.a_open=QAction(self); self.a_folder=QAction(self); self.a_logview=QAction(self); self.a_qso_log=QAction(self); self.a_capture_rx=QAction(self); self.a_exit=QAction(self); self.m_file.addActions([self.a_open,self.a_folder,self.a_logview,self.a_qso_log]); self.m_file.addSeparator(); self.m_file.addAction(self.a_capture_rx); self.m_file.addSeparator(); self.m_file.addAction(self.a_exit)
         self.m_settings=mb.addMenu(""); self.a_settings=QAction(self); self.m_settings.addAction(self.a_settings)
         self.m_lang=mb.addMenu(""); self.a_ja=QAction("日本語",self); self.a_en=QAction("English",self); self.m_lang.addActions([self.a_ja,self.a_en])
-        self.m_help=mb.addMenu(""); self.a_note=QAction(self); self.a_about=QAction(self); self.a_reset=QAction(self); self.a_update=QAction(self); self.m_help.addAction(self.a_note); self.m_help.addSeparator(); self.m_help.addActions([self.a_reset,self.a_update]); self.m_help.addSeparator(); self.m_help.addAction(self.a_about)
+        self.m_help=mb.addMenu(""); self.a_note=QAction(self); self.a_about=QAction(self); self.a_licenses=QAction(self); self.a_reset=QAction(self); self.a_update=QAction(self); self.m_help.addAction(self.a_note); self.m_help.addSeparator(); self.m_help.addActions([self.a_reset,self.a_update]); self.m_help.addSeparator(); self.m_help.addActions([self.a_licenses,self.a_about])
 
     def _connect(self):
         self.a_exit.triggered.connect(self.close); self.a_open.triggered.connect(lambda:QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.paths.log_file))))
         self.a_folder.triggered.connect(lambda:QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.paths.log_dir)))); self.a_logview.triggered.connect(self.show_log_window); self.a_settings.triggered.connect(self.show_settings)
-        self.a_ja.triggered.connect(lambda:self.set_language("ja")); self.a_en.triggered.connect(lambda:self.set_language("en")); self.a_note.triggered.connect(lambda:self.show_warning(force=True)); self.a_about.triggered.connect(self.show_about)
+        self.a_ja.triggered.connect(lambda:self.set_language("ja")); self.a_en.triggered.connect(lambda:self.set_language("en")); self.a_note.triggered.connect(lambda:self.show_warning(force=True)); self.a_about.triggered.connect(self.show_about); self.a_licenses.triggered.connect(self.show_licenses)
         self.a_reset.triggered.connect(self.reset_windows); self.a_update.triggered.connect(self.show_update)
         self.a_qso_log.triggered.connect(self.offer_qso_log)
         self.a_capture_rx.triggered.connect(self._capture_rx_input)
@@ -994,7 +1020,7 @@ class MainWindow(QMainWindow):
     def retranslate(self):
         L=self.lang; self.m_file.setTitle(tr(L,"file")); self.m_settings.setTitle(tr(L,"settings")); self.m_lang.setTitle(tr(L,"language")); self.m_help.setTitle(tr(L,"help"))
         self.connect_btn.setText(tr(L,"disconnect") if self.radio else tr(L,"connect")); self.control_btn.setText(tr(L,"control")); self._show_frequency(); self._update_connection_label()
-        self.a_open.setText(tr(L,"open_log")); self.a_folder.setText(tr(L,"open_log_folder")); self.a_logview.setText(tr(L,"log_view")); self.a_qso_log.setText(tr(L,"record_qso")); self.a_capture_rx.setText(tr(L,"capture_rx")); self.a_exit.setText(tr(L,"exit")); self.a_settings.setText(tr(L,"settings_open")); self.a_note.setText(tr(L,"operating_note")); self.a_about.setText(tr(L,"about")); self.a_reset.setText(tr(L,"reset_windows")); self.a_update.setText(tr(L,"update_menu"))
+        self.a_open.setText(tr(L,"open_log")); self.a_folder.setText(tr(L,"open_log_folder")); self.a_logview.setText(tr(L,"log_view")); self.a_qso_log.setText(tr(L,"record_qso")); self.a_capture_rx.setText(tr(L,"capture_rx")); self.a_exit.setText(tr(L,"exit")); self.a_settings.setText(tr(L,"settings_open")); self.a_note.setText(tr(L,"operating_note")); self.a_about.setText(tr(L,"about")); self.a_licenses.setText(tr(L,"licenses_title")); self.a_reset.setText(tr(L,"reset_windows")); self.a_update.setText(tr(L,"update_menu"))
         self._spectrum_title(); self.decode_group.setTitle(tr(L,"decode")); self.qso_group.setTitle(tr(L,"qso")); self.hint.setText(tr(L,"decode_hint"))
         self.rx_diag_label.setText(tr(L,"rx_diag_"+getattr(self,"_rx_diag_stage","idle")))
         self.sq_lab.setText(tr(L,"squelch")); self.level_lab.setText(tr(L,"rx_level")); self.sensitivity_lab.setText(tr(L,"sensitivity"))
@@ -1008,7 +1034,7 @@ class MainWindow(QMainWindow):
         self.sequence_clear.setText(tr(L,"free_clear")); self.sequence_stop.setText(tr(L,"stop")); self.sequence_send.setText(tr(L,"free_send"))
         self.sequence_send.setToolTip(tr(L,"tx_busy") if self._tx_busy else "")
         self.statusBar().showMessage(tr(L,"mock_notice"),12000)
-        for w in (self.settings_window,self.about_window,self.log_window,self.warning_window,self.control_window,self.update_window,self.qso_log_window):
+        for w in (self.settings_window,self.about_window,self.licenses_window,self.log_window,self.warning_window,self.control_window,self.update_window,self.qso_log_window):
             if w is not None and hasattr(w,"set_language"): w.set_language(L)
         self._refresh_sequence_buttons(); self._clock_update()
 
@@ -1037,6 +1063,10 @@ class MainWindow(QMainWindow):
         if self.about_window is None: self.about_window=AboutWindow(self)
         self.about_window.set_language(self.lang); self.about_window.show(); self.about_window.raise_(); self.about_window.activateWindow()
 
+    def show_licenses(self):
+        if self.licenses_window is None: self.licenses_window=LicenseWindow(self)
+        self.licenses_window.set_language(self.lang); self.licenses_window.show(); self.licenses_window.raise_(); self.licenses_window.activateWindow()
+
     def show_log_window(self):
         if self.log_window is None: self.log_window=LogWindow(self)
         self.log_window.set_language(self.lang); self.log_window.refresh(); self.log_window.show(); self.log_window.raise_(); self.log_window.activateWindow()
@@ -1053,7 +1083,7 @@ class MainWindow(QMainWindow):
     def reset_windows(self):
         self.config["windows"]={}
         self.showNormal(); restore_window_geometry(self,self.config,"main",(1280,800),(320,240))
-        for w in (self.first_run_window,self.settings_window,self.about_window,self.log_window,self.warning_window,self.control_window,self.update_window,self.qso_log_window):
+        for w in (self.first_run_window,self.settings_window,self.about_window,self.licenses_window,self.log_window,self.warning_window,self.control_window,self.update_window,self.qso_log_window):
             if w is not None and w.isVisible():
                 w.showNormal(); restore_window_geometry(w,self.config,w.geometry_key,w.default_size,w.minimum_size)
         self.store.save()
@@ -1632,7 +1662,7 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(100,self.close)
             return
         save_window_geometry(self,self.config,"main")
-        for w in (self.first_run_window,self.settings_window,self.about_window,self.log_window,self.warning_window,self.control_window,self.update_window,self.qso_log_window):
+        for w in (self.first_run_window,self.settings_window,self.about_window,self.licenses_window,self.log_window,self.warning_window,self.control_window,self.update_window,self.qso_log_window):
             if w is not None:
                 if w.isVisible(): save_window_geometry(w,self.config,getattr(w,"geometry_key","window"))
                 w.close()
